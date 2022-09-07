@@ -22,6 +22,18 @@
 package org.pkcs11.utimaco;
 
 import java.nio.charset.StandardCharsets;
+import java.security.AlgorithmParameters;
+import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
+import java.security.interfaces.ECPublicKey;
+import java.security.spec.ECGenParameterSpec;
+import java.security.spec.ECParameterSpec;
+import java.security.spec.ECPoint;
+import java.security.spec.ECPublicKeySpec;
+import java.security.spec.EncodedKeySpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 
 import org.pkcs11.jacknji11.CE;
@@ -132,7 +144,7 @@ public class CryptokiTest extends TestCase {
         }
     }
 
-    public void testGetSlotInfo() {
+    public void testGetSlotInfo() throws NoSuchAlgorithmException, InvalidKeySpecException {
         long session = CE.OpenSession(TESTSLOT, CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION,
                 null, null);
         CE.LoginUser(session, USER_PIN);
@@ -155,6 +167,17 @@ public class CryptokiTest extends TestCase {
         System.out.println("testGetSlotInfo: public key size (should be 32 bytes) = " + publicKey.length + " - value = "
                 + Hex.b2s(publicKey));
 
+        // CKA.EC_POINT is the public key - EC points - (CKA.VALUE) in an OCTET string.
+        // The ASN.1 tag for OCTET STRING is 0x04, and the length of that string is 32
+        // bytes (0x20 in hex). So, CKA.EC_POINT == 0420 + CKA.VALUE.
+        // EC points - pairs of integer coordinates {x, y}, laying on the curve.
+        final byte[] ecPoint = CE.GetAttributeValue(session, pubKey.value(), CKA.EC_POINT).getValue();
+        System.out.println("testGetSlotInfo: EC_POINT length = " + ecPoint.length + " - value = "
+                + Hex.b2s(ecPoint));
+        final byte[] ecParams = CE.GetAttributeValue(session, pubKey.value(), CKA.EC_PARAMS).getValue();
+        System.out.println("testGetSlotInfo: EC_PARAMS length = " + ecParams.length + " - value = "
+                + Hex.b2s(ecParams));
+
         try {
             final byte[] privateKey = CE.GetAttributeValue(session, privKey.value(), CKA.VALUE).getValue();
             fail("testGetSlotInfo: Obtaining private key value should throw exception");
@@ -164,6 +187,29 @@ public class CryptokiTest extends TestCase {
                     e.getCKR());
             System.out.println("testGetSlotInfo: Failure obtaining private key, as expected:  " + CKR.L2S(e.getCKR()));
         }
+
+        // KeyFactory keyFactory = KeyFactory.getInstance("EC");
+        // EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKey);
+        // PublicKey publicKey2 = keyFactory.generatePublic(publicKeySpec);
+        // X509EncodedKeySpec pubKeySpec = new X509EncodedKeySpec(publicKey);
+
+        // KeyFactory keyFactory = KeyFactory.getInstance("EC");
+        // PublicKey pk = keyFactory.generatePublic(pubKeySpec);
+        // extract the key with known domain parameters
+
+        // ECGenParameterSpec ecGenParameterSpec = new ECGenParameterSpec("secp256k1");
+        // AlgorithmParameters algorithmParameters =
+        // AlgorithmParameters.getInstance("EC");
+        // algorithmParameters.init(ecGenParameterSpec);
+        // ECParameterSpec ecParameterSpec =
+        // algorithmParameters.getParameterSpec(ECParameterSpec.class);
+        // ECPoint point = ECPointUtil.decodePoint(ecParameterSpec.getCurve(), pubKey);
+        // KeyFactory keyFactory = KeyFactory.getInstance("EC");
+        // ECPublicKeySpec ecPublicKeySpec = new ECPublicKeySpec(point,
+        // ecParameterSpec);
+        // ECPublicKey ecPublicKey = (ECPublicKey)
+        // keyFactory.generatePublic(ecPublicKeySpec);
+
     }
 
     /**
