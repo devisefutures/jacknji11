@@ -21,33 +21,59 @@
 
 package org.pkcs11.utimaco;
 
-import java.nio.charset.StandardCharsets;
+import junit.framework.TestCase;
+import net.i2p.crypto.eddsa.EdDSAEngine;
+import net.i2p.crypto.eddsa.EdDSAPublicKey;
+import net.i2p.crypto.eddsa.spec.EdDSANamedCurveSpec;
+import net.i2p.crypto.eddsa.spec.EdDSANamedCurveTable;
+import net.i2p.crypto.eddsa.spec.EdDSAParameterSpec;
+import net.i2p.crypto.eddsa.spec.EdDSAPublicKeySpec;
+
+import org.bouncycastle.asn1.ASN1EncodableVector;
+import org.bouncycastle.asn1.ASN1Integer;
+import org.bouncycastle.asn1.DERSequence;
+import org.bouncycastle.crypto.Signer;
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
+import org.bouncycastle.crypto.signers.Ed25519Signer;
+import org.bouncycastle.jce.ECNamedCurveTable;
+import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
+import org.bouncycastle.jce.spec.ECPublicKeySpec;
+import org.bouncycastle.util.Arrays;
+import org.bouncycastle.util.encoders.Base64;
+
+import java.io.FileWriter;
+import java.io.IOException;
+import java.math.BigInteger;
 import java.security.AlgorithmParameters;
+import java.security.InvalidKeyException;
 import java.security.KeyFactory;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.PublicKey;
-import java.security.interfaces.ECPublicKey;
+import java.security.Security;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
-import java.security.spec.ECPoint;
-import java.security.spec.ECPublicKeySpec;
 import java.security.spec.EncodedKeySpec;
 import java.security.spec.InvalidKeySpecException;
+import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.Arrays;
 
 import org.pkcs11.jacknji11.CE;
 import org.pkcs11.jacknji11.CKA;
 import org.pkcs11.jacknji11.CKM;
 import org.pkcs11.jacknji11.CKR;
 import org.pkcs11.jacknji11.CKRException;
+import org.pkcs11.jacknji11.CK_NOTIFY;
 import org.pkcs11.jacknji11.CK_SESSION_INFO;
 import org.pkcs11.jacknji11.CK_SLOT_INFO;
 import org.pkcs11.jacknji11.CK_TOKEN_INFO;
 import org.pkcs11.jacknji11.Hex;
 import org.pkcs11.jacknji11.LongRef;
+import org.pkcs11.jacknji11.NativePointer;
 
-import junit.framework.TestCase;
 
 /**
  * JUnit tests for jacknji11.
@@ -91,20 +117,20 @@ public class CryptokiTest extends TestCase {
         CE.Finalize();
     }
 
+    /**
+     * Test Ed25519 signature and verification using the HSM
+     */
     public void testSignVerifyEd25519() {
-        long session = CE.OpenSession(TESTSLOT, CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION,
-                null, null);
-        CE.LoginUser(session, USER_PIN);
+        long session = loginSession(TESTSLOT, USER_PIN,
+                CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION, null, null);
 
+        // Generate Ed25519 key pair
         LongRef pubKey = new LongRef();
         LongRef privKey = new LongRef();
         generateKeyPairEd25519(session, pubKey, privKey);
 
-        System.out.println("testSignVerifyEd25519: edwards25519 keypair generated. PublicKey handle: " + pubKey.value()
-                + ", PrivKey handle: " + privKey.value());
-
         // Direct sign, PKCS#11 "2.3.6 ECDSA without hashing"
-        byte[] data = "MEssage to be signed!!".getBytes(); // SHA256 hash is 32 bytes
+        byte[] data = "Message to be signed!!".getBytes();
         CE.SignInit(session, new CKM(CKM.ECDSA), privKey.value());
         byte[] sig1 = CE.Sign(session, data);
         assertEquals(64, sig1.length);
@@ -112,23 +138,28 @@ public class CryptokiTest extends TestCase {
         System.out.println(
                 "testSignVerifyEd25519: Signature generated with length == 64? " + String.valueOf(64 == sig1.length));
 
+        // Verify valid signature
         CE.VerifyInit(session, new CKM(CKM.ECDSA), pubKey.value());
-        CE.Verify(session, data, sig1);
+        try {
+            CE.Verify(session, data, sig1);
+            System.out.println("testSignVerifyEd25519: Valid Signature verified");
+        } catch (CKRException e) {
+            assertNull("Valid signature verification failed", e.getCKR());
+        }
 
-        System.out.println("testSignVerifyEd25519: Signature verified");
-
+        // Verify if two signatures of the same data are the same signature
         CE.SignInit(session, new CKM(CKM.ECDSA), privKey.value());
         byte[] sig3 = CE.Sign(session, data);
 
-        System.out.println(
-                "testSignVerifyEd25519: Signatures are the same: sig1 = " + Hex.b2s(sig1) + " - sig3 = "
+        System.out.println("testSignVerifyEd25519: Signatures are the same: sig1 = " + Hex.b2s(sig1) + " - sig3 = "
                         + Hex.b2s(sig3));
         assertEquals("Signatures are not the same.", true, Hex.b2s(sig1).equals(Hex.b2s(sig3)));
 
-        byte[] data1 = new byte[256]; // SHA256 hash is 32 bytes
+        byte[] data1 = new byte[256];
         CE.SignInit(session, new CKM(CKM.ECDSA), privKey.value());
         byte[] sig2 = CE.Sign(session, data1);
 
+        // Verify invalid signature
         CE.VerifyInit(session, new CKM(CKM.ECDSA), pubKey.value());
         try {
             CE.Verify(session, data, sig2);
@@ -136,80 +167,191 @@ public class CryptokiTest extends TestCase {
         } catch (CKRException e) {
             System.out.println(
                     "testSignVerifyEd25519: Verifying invalid signature. Exception expected " + CKR.SIGNATURE_INVALID
-                            + " : "
-                            + CKR.L2S(CKR.SIGNATURE_INVALID) + " - Actual exception: "
+                            + " : " + CKR.L2S(CKR.SIGNATURE_INVALID) + " - Actual exception: "
                             + e.getCKR() + " : " + CKR.L2S(e.getCKR()));
             assertEquals("Failure with invalid signature data should be CKR.SIGNATURE_INVALID", CKR.SIGNATURE_INVALID,
                     e.getCKR());
         }
     }
 
-    public void testGetSlotInfo() throws NoSuchAlgorithmException, InvalidKeySpecException {
-        long session = CE.OpenSession(TESTSLOT, CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION,
-                null, null);
-        CE.LoginUser(session, USER_PIN);
+    /**
+     * Test Slot access and info obtained
+     */
+    public void testGetSlotInfo() {
+        long session = loginSession(TESTSLOT, USER_PIN,
+                CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION, null, null);
 
+        // Generate Ed25519 key pair
         LongRef pubKey = new LongRef();
         LongRef privKey = new LongRef();
         generateKeyPairEd25519(session, pubKey, privKey);
 
+        // Get slot info
         CK_SLOT_INFO info = new CK_SLOT_INFO();
         CE.GetSlotInfo(TESTSLOT, info);
-        System.out.println("testGetSlotInfo - Testslot: " + TESTSLOT);
+        System.out.println("testGetSlotInfo - Testslot info: " + TESTSLOT);
         System.out.println(info);
 
+        // Get token info
         CK_TOKEN_INFO tinfo = new CK_TOKEN_INFO();
         CE.GetTokenInfo(TESTSLOT, tinfo);
         System.out.println("testGetSlotInfo - Token info: ");
         System.out.println(tinfo);
+    }
 
-        final byte[] publicKey = CE.GetAttributeValue(session, pubKey.value(), CKA.VALUE).getValue();
-        System.out.println("testGetSlotInfo: public key size (should be 32 bytes) = " + publicKey.length + " - value = "
+    /**
+     * Test Ed25519 key pair genertion
+     */
+    public void testKeyPairEd25519() {
+        long session = loginSession(TESTSLOT, USER_PIN,
+                CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION, null, null);
+
+        // Generate Ed25519 key pair
+        LongRef pubKey = new LongRef();
+        LongRef privKey = new LongRef();
+        generateKeyPairEd25519(session, pubKey, privKey);
+
+        System.out.println("testKeyPairEd25519: edwards25519 keypair generated. PublicKey handle: " + pubKey.value()
+                + ", PrivKey handle: " + privKey.value());
+
+        // GET public key value (CKA.VALUE)
+        byte[] publicKey = CE.GetAttributeValue(session, pubKey.value(), CKA.VALUE).getValue();
+        assertEquals(32, publicKey.length);
+        System.out.println(
+                "testKeyPairEd25519: public key size (should be 32 bytes) = " + publicKey.length + " - value = "
                 + Hex.b2s(publicKey));
+
+        // Get public key EC point (CKA.EC_POINT)
+        byte[] ecPoint = CE.GetAttributeValue(session, pubKey.value(), CKA.EC_POINT).getValue();
+        System.out.println("testKeyPairEd25519: EC_POINT length = " + ecPoint.length + " - value = "
+                + Hex.b2s(ecPoint));
+        // Get public key EC params (CKA.EC_PARAMS)
+        byte[] ecParams = CE.GetAttributeValue(session, pubKey.value(), CKA.EC_PARAMS).getValue();
+        System.out.println("testKeyPairEd25519: EC_PARAMS length = " + ecParams.length + " - value = "
+                + Hex.b2s(ecParams));
 
         // CKA.EC_POINT is the public key - EC points - (CKA.VALUE) in an OCTET string.
         // The ASN.1 tag for OCTET STRING is 0x04, and the length of that string is 32
         // bytes (0x20 in hex). So, CKA.EC_POINT == 0420 + CKA.VALUE.
         // EC points - pairs of integer coordinates {x, y}, laying on the curve.
-        final byte[] ecPoint = CE.GetAttributeValue(session, pubKey.value(), CKA.EC_POINT).getValue();
-        System.out.println("testGetSlotInfo: EC_POINT length = " + ecPoint.length + " - value = "
-                + Hex.b2s(ecPoint));
-        final byte[] ecParams = CE.GetAttributeValue(session, pubKey.value(), CKA.EC_PARAMS).getValue();
-        System.out.println("testGetSlotInfo: EC_PARAMS length = " + ecParams.length + " - value = "
-                + Hex.b2s(ecParams));
+        assertEquals(Hex.b2s(publicKey), Hex.b2s(ecPoint).substring(4));
 
+        // Get private key
         try {
             final byte[] privateKey = CE.GetAttributeValue(session, privKey.value(), CKA.VALUE).getValue();
-            fail("testGetSlotInfo: Obtaining private key value should throw exception");
+            fail("testKeyPairEd25519: Obtaining private key value should throw exception");
         } catch (CKRException e) {
-            assertEquals("testGetSlotInfo: Failure obtaining private key, should be CKR.ATTRIBUTE_SENSITIVE.",
+            assertEquals("testKeyPairEd25519: Failure obtaining private key, should be CKR.ATTRIBUTE_SENSITIVE.",
                     CKR.ATTRIBUTE_SENSITIVE,
                     e.getCKR());
-            System.out.println("testGetSlotInfo: Failure obtaining private key, as expected:  " + CKR.L2S(e.getCKR()));
+            System.out
+                    .println("testKeyPairEd25519: Failure obtaining private key, as expected:  " + CKR.L2S(e.getCKR()));
         }
+    }
 
-        // KeyFactory keyFactory = KeyFactory.getInstance("EC");
-        // EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKey);
-        // PublicKey publicKey2 = keyFactory.generatePublic(publicKeySpec);
-        // X509EncodedKeySpec pubKeySpec = new X509EncodedKeySpec(publicKey);
+    /**
+     * Test Ed25519 public key export
+     */
+    public void testExportPublicKey() {
+        long session = loginSession(TESTSLOT, USER_PIN,
+                CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION, null, null);
 
-        // KeyFactory keyFactory = KeyFactory.getInstance("EC");
-        // PublicKey pk = keyFactory.generatePublic(pubKeySpec);
-        // extract the key with known domain parameters
+        // Generate Ed25519 key pair
+        LongRef pubKey = new LongRef();
+        LongRef privKey = new LongRef();
+        generateKeyPairEd25519(session, pubKey, privKey);
 
-        // ECGenParameterSpec ecGenParameterSpec = new ECGenParameterSpec("secp256k1");
-        // AlgorithmParameters algorithmParameters =
-        // AlgorithmParameters.getInstance("EC");
-        // algorithmParameters.init(ecGenParameterSpec);
-        // ECParameterSpec ecParameterSpec =
-        // algorithmParameters.getParameterSpec(ECParameterSpec.class);
-        // ECPoint point = ECPointUtil.decodePoint(ecParameterSpec.getCurve(), pubKey);
-        // KeyFactory keyFactory = KeyFactory.getInstance("EC");
-        // ECPublicKeySpec ecPublicKeySpec = new ECPublicKeySpec(point,
-        // ecParameterSpec);
-        // ECPublicKey ecPublicKey = (ECPublicKey)
-        // keyFactory.generatePublic(ecPublicKeySpec);
+        // Public key information for ed255619 is stored in CKA.VALUE
+        CKA ec_point = CE.GetAttributeValue(session, pubKey.value(), CKA.VALUE);
 
+        // Create EdDSA spec and PublicKey using net.i2p.crypto library
+        EdDSAParameterSpec spec = EdDSANamedCurveTable.getByName("ed25519");
+        EdDSAPublicKeySpec pubKeySpec = new EdDSAPublicKeySpec(ec_point.getValue(), spec);
+        PublicKey pubKey2 = new EdDSAPublicKey(pubKeySpec);
+        System.out.println("testExportPublicKey: PublicKey: " + Hex.b2s(pubKey2.getEncoded()));
+        System.out.println("testExportPublicKey: PublicKey Format: " + pubKey2.getFormat());
+
+        // Encode as PEM for export
+        byte[] data = pubKey2.getEncoded();
+        String base64encoded = new String(Base64.encode(data));
+        String pemFormat = "-----BEGIN PUBLIC KEY-----\n" + base64encoded + "\n-----END PUBLIC KEY-----";
+        System.out.println("testExportPublicKey: \n" + pemFormat);
+
+        try {
+            FileWriter myWriter = new FileWriter("pubkey.pem");
+            myWriter.write(pemFormat);
+            myWriter.close();
+            System.out.println("testExportPublicKey: Successfully wrote to the file.");
+        } catch (IOException e) {
+            System.out.println("An error occurred.");
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Test Ed25519 signature verification using java (external to the HSM)
+     * 
+     * @throws NoSuchAlgorithmException
+     * @throws InvalidKeySpecException
+     * @throws InvalidParameterSpecException
+     * @throws InvalidKeyException
+     * @throws SignatureException
+     * @throws NoSuchProviderException
+     * @throws IOException
+     */
+    public void testSoftVerifyEd25519()
+            throws NoSuchAlgorithmException, InvalidKeySpecException, InvalidParameterSpecException,
+            InvalidKeyException, SignatureException, NoSuchProviderException, IOException {
+        long session = loginSession(TESTSLOT, USER_PIN,
+                CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION, null, null);
+
+        // Generate Ed25519 key pair
+        LongRef pubKey = new LongRef();
+        LongRef privKey = new LongRef();
+        generateKeyPairEd25519(session, pubKey, privKey);
+
+        // Direct sign, PKCS#11 "2.3.6 ECDSA without hashing"
+        byte[] msg = "Message to be signed!!".getBytes("UTF-8");
+        CE.SignInit(session, new CKM(CKM.ECDSA), privKey.value());
+        byte[] sig1 = CE.Sign(session, msg);
+
+        // Public key information for ed255619 is stored in CKA.VALUE
+        CKA ec_point = CE.GetAttributeValue(session, pubKey.value(), CKA.VALUE);
+
+        // Create EdDSA spec and PublicKey using net.i2p.crypto library
+        EdDSAParameterSpec spec = EdDSANamedCurveTable.getByName("ed25519");
+        EdDSAPublicKeySpec pubKeySpec = new EdDSAPublicKeySpec(ec_point.getValue(), spec);
+        PublicKey pubKey2 = new EdDSAPublicKey(pubKeySpec);
+
+        System.out.println("testSoftVerifyEd25519: message: " + Hex.b2s(msg));
+        System.out.println("testSoftVerifyEd25519: sigString " + Hex.b2s(sig1));
+        System.out.println("testSoftVerifyEd25519: pubkey " + Hex.b2s(pubKey2.getEncoded()));
+
+        // Verify HSM signature, using extracted public key
+        EdDSAEngine mEdDSAEngine = new EdDSAEngine();
+        mEdDSAEngine.initVerify(pubKey2);
+        mEdDSAEngine.update(msg);
+        boolean validSig = mEdDSAEngine.verify(sig1);
+
+        assertEquals(true, validSig);
+        System.out.println("testSoftVerifyEd25519: Signature software verification : " + validSig);
+    }
+
+    /**
+     * Login to slotID and returns the session handle.
+     * 
+     * @param slotID      the slot's ID
+     * @param userPIN     the normal user's PIN
+     * @param flags       from CK_SESSION_INFO
+     * @param application passed to callback (ok to leave it null)
+     * @param notify      callback function (ok to leave it null)
+     * @return session handle
+     */
+    public long loginSession(long slotID, byte[] userPIN, long flags, NativePointer application,
+            CK_NOTIFY notify) {
+        long session = CE.OpenSession(slotID, flags, application, notify);
+        CE.LoginUser(session, userPIN);
+        return session;
     }
 
     /**
