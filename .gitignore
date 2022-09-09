@@ -9,3 +9,4 @@ tokens
 /bin/
 *.iml
 *.pem
+.vscode

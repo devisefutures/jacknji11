@@ -45,9 +45,14 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.10.1</version>
         <configuration>
-          <source>1.8</source>
-          <target>1.8</target>
+          <source>17</source>
+          <target>17</target>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>2.22.2</version>
       </plugin>
     </plugins>
   </build>
@@ -61,7 +66,7 @@
     <dependency>
       <groupId>com.github.jnr</groupId>
       <artifactId>jnr-ffi</artifactId>
-      <version>0.6.0</version> <!-- original version not changed -->
+      <version>2.2.7</version> 
     </dependency>
 
     <!-- provided -->    
@@ -106,13 +111,6 @@
       <groupId>net.i2p.crypto</groupId>
       <artifactId>eddsa</artifactId>
       <version>0.3.0</version>
-    </dependency>
-
-    <!-- added para testes - a retirar ?? -->
-    <dependency>
-      <groupId>commons-codec</groupId>
-      <artifactId>commons-codec</artifactId>
-      <version>1.15</version>
     </dependency>
 
   </dependencies>
