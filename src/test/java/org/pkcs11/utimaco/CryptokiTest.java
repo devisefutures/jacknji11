@@ -24,42 +24,65 @@ package org.pkcs11.utimaco;
 import junit.framework.TestCase;
 import net.i2p.crypto.eddsa.EdDSAEngine;
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
-import net.i2p.crypto.eddsa.spec.EdDSANamedCurveSpec;
 import net.i2p.crypto.eddsa.spec.EdDSANamedCurveTable;
 import net.i2p.crypto.eddsa.spec.EdDSAParameterSpec;
 import net.i2p.crypto.eddsa.spec.EdDSAPublicKeySpec;
 
 import org.bouncycastle.asn1.ASN1EncodableVector;
 import org.bouncycastle.asn1.ASN1Integer;
+import org.bouncycastle.asn1.ASN1OutputStream;
+import org.bouncycastle.asn1.ASN1Primitive;
+import org.bouncycastle.asn1.DERBitString;
 import org.bouncycastle.asn1.DERSequence;
-import org.bouncycastle.crypto.Signer;
-import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
-import org.bouncycastle.jce.ECNamedCurveTable;
-import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
-import org.bouncycastle.jce.spec.ECPublicKeySpec;
-import org.bouncycastle.util.Arrays;
+import org.bouncycastle.asn1.edec.EdECObjectIdentifiers;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x500.X500NameBuilder;
+import org.bouncycastle.asn1.x500.style.BCStyle;
+import org.bouncycastle.asn1.x509.AccessDescription;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x509.AuthorityInformationAccess;
+import org.bouncycastle.asn1.x509.BasicConstraints;
+import org.bouncycastle.asn1.x509.CRLDistPoint;
+import org.bouncycastle.asn1.x509.CertificatePolicies;
+import org.bouncycastle.asn1.x509.DistributionPoint;
+import org.bouncycastle.asn1.x509.DistributionPointName;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.ExtensionsGenerator;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyUsage;
+import org.bouncycastle.asn1.x509.PolicyInformation;
+import org.bouncycastle.asn1.x509.PolicyQualifierId;
+import org.bouncycastle.asn1.x509.PolicyQualifierInfo;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.asn1.x509.TBSCertificate;
+import org.bouncycastle.asn1.x509.Time;
+import org.bouncycastle.asn1.x509.V3TBSCertificateGenerator;
+import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
+import org.bouncycastle.crypto.digests.SHA1Digest;
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.bouncycastle.util.encoders.Base64;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.math.BigInteger;
-import java.security.AlgorithmParameters;
 import java.security.InvalidKeyException;
-import java.security.KeyFactory;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PublicKey;
-import java.security.Security;
-import java.security.Signature;
 import java.security.SignatureException;
-import java.security.spec.ECGenParameterSpec;
-import java.security.spec.ECParameterSpec;
-import java.security.spec.EncodedKeySpec;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
-import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
 
 import org.pkcs11.jacknji11.CE;
 import org.pkcs11.jacknji11.CKA;
@@ -73,6 +96,7 @@ import org.pkcs11.jacknji11.CK_TOKEN_INFO;
 import org.pkcs11.jacknji11.Hex;
 import org.pkcs11.jacknji11.LongRef;
 import org.pkcs11.jacknji11.NativePointer;
+
 
 
 /**
@@ -335,6 +359,141 @@ public class CryptokiTest extends TestCase {
 
         assertEquals(true, validSig);
         System.out.println("testSoftVerifyEd25519: Signature software verification : " + validSig);
+    }
+
+    public void testCertificateEd25519() throws IOException, CertificateException, NoSuchAlgorithmException,
+            SignatureException, InvalidKeyException, NoSuchProviderException {
+        long session = loginSession(TESTSLOT, USER_PIN,
+                CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION, null, null);
+
+        // Generate Ed25519 key pair
+        LongRef pubKey = new LongRef();
+        LongRef privKey = new LongRef();
+        generateKeyPairEd25519(session, pubKey, privKey);
+
+        // Public key information for ed255619 is stored in CKA.VALUE
+        CKA ec_point = CE.GetAttributeValue(session, pubKey.value(), CKA.VALUE);
+
+        // Create EdDSA spec and PublicKey using net.i2p.crypto library
+        EdDSAParameterSpec spec = EdDSANamedCurveTable.getByName("ed25519");
+        EdDSAPublicKeySpec pubKeySpec = new EdDSAPublicKeySpec(ec_point.getValue(), spec);
+        PublicKey pubKey2 = new EdDSAPublicKey(pubKeySpec);
+
+        //
+        // Create certificate
+        // see https://www.mayrhofer.eu.org/post/create-x509-certs-in-java/ e
+        // https://stackoverflow.com/questions/39731781/adding-a-signature-to-a-certificate
+        //
+        Calendar expiry = Calendar.getInstance();
+        int validity = 4 * 365;
+        expiry.add(Calendar.DAY_OF_YEAR, validity);
+
+        // Certificate structure
+        V3TBSCertificateGenerator certGen = new V3TBSCertificateGenerator();
+        certGen.setSerialNumber(new ASN1Integer(BigInteger.valueOf(System.currentTimeMillis())));
+
+        // DN
+        X500NameBuilder dnBuilder = new X500NameBuilder(BCStyle.INSTANCE);
+        dnBuilder.addRDN(BCStyle.O, "Test Organization");
+        dnBuilder.addRDN(BCStyle.OU, "Test Organization Unit");
+        dnBuilder.addRDN(BCStyle.C, "PT");
+        dnBuilder.addRDN(BCStyle.CN, "Test Organization Root Certification Authority");
+        X500Name subject = dnBuilder.build();
+        ASN1Primitive derObject = subject.toASN1Primitive();
+        X500Name dnInstance = X500Name.getInstance(derObject);
+
+        certGen.setIssuer(dnInstance);
+        certGen.setSubject(dnInstance);
+        certGen.setStartDate(new Time(new Date(System.currentTimeMillis())));
+        certGen.setEndDate(new Time(expiry.getTime()));
+        certGen.setSubjectPublicKeyInfo(SubjectPublicKeyInfo.getInstance(pubKey2.getEncoded()));
+        certGen.setSignature(new AlgorithmIdentifier(EdECObjectIdentifiers.id_Ed25519));
+
+        // Extensions
+        ExtensionsGenerator extGen = new ExtensionsGenerator();
+        // more info at
+        // http://www.java2s.com/example/java-src/pkg/org/metaeffekt/dcc/commons/pki/certificatemanager-98d76.html
+        // AIA extension
+        List<AccessDescription> list = new ArrayList<>();
+        AccessDescription accessDescription = new AccessDescription(AccessDescription.id_ad_ocsp,
+                new GeneralName(GeneralName.uniformResourceIdentifier, "http://ocsp.root.ca.pt/public/ocsp"));
+        list.add(accessDescription);
+        AccessDescription[] accessDescriptions = list.toArray(new AccessDescription[list.size()]);
+        extGen.addExtension(Extension.authorityInfoAccess, false,
+                new AuthorityInformationAccess(accessDescriptions));
+        // Subject key identifier extension
+        extGen.addExtension(Extension.subjectKeyIdentifier, false,
+                new JcaX509ExtensionUtils().createSubjectKeyIdentifier(pubKey2));
+        // Basic constraints (critical) extension
+        extGen.addExtension(Extension.basicConstraints, true, new BasicConstraints(true));
+        // Authority Key Identifier extension (for self-signed certificates
+        // subjectKeyIdentifier == authorityKeyIdentifier)
+        extGen.addExtension(Extension.authorityKeyIdentifier, false,
+                new JcaX509ExtensionUtils().createAuthorityKeyIdentifier(pubKey2));
+        // Certificate Policies extension
+        List<PolicyInformation> plist = new ArrayList<>();
+        plist.add(new PolicyInformation(PolicyQualifierId.id_qt_cps,
+                new DERSequence(new PolicyQualifierInfo("https://pki.root.ca.pt/public/politics/cps.html"))));
+        PolicyInformation[] plists = plist.toArray(new PolicyInformation[plist.size()]);
+        extGen.addExtension(Extension.certificatePolicies, false, new CertificatePolicies(plists));
+        // CRL Distribution points extension
+        List<DistributionPoint> crlList = new ArrayList<>();
+        DistributionPointName dpName = new DistributionPointName(
+                new GeneralNames(new GeneralName(GeneralName.uniformResourceIdentifier,
+                        "http://pki.root.ca.pt/public/crl/caroot.crl")));
+        crlList.add(new DistributionPoint(dpName, null, null));
+        DistributionPoint[] crlDistributionPoints = crlList.toArray(new DistributionPoint[crlList.size()]);
+        extGen.addExtension(Extension.cRLDistributionPoints, false, new CRLDistPoint(crlDistributionPoints));
+        // keyUsage critical extension
+        extGen.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign));
+
+        // add extensions to certifcate structure
+        certGen.setExtensions(extGen.generate());
+
+        // generate certificate
+        TBSCertificate tbsCert = certGen.generateTBSCertificate();
+
+        System.out.println("testCertificateEd25519: Certificate:\n" + Hex.b2s(tbsCert.getEncoded()));
+
+        SHA1Digest digester = new SHA1Digest();
+        ByteArrayOutputStream bOut = new ByteArrayOutputStream();
+        ASN1OutputStream dOut = ASN1OutputStream.create(bOut);
+        dOut.writeObject(tbsCert);
+
+        byte[] certBlock = bOut.toByteArray();
+        // first create digest
+        digester.update(certBlock, 0, certBlock.length);
+        byte[] hash = new byte[digester.getDigestSize()];
+        digester.doFinal(hash, 0);
+
+        CE.SignInit(session, new CKM(CKM.ECDSA), privKey.value());
+        byte[] signature = CE.Sign(session, hash);
+
+        ASN1EncodableVector v = new ASN1EncodableVector();
+        v.add(tbsCert);
+        v.add(new AlgorithmIdentifier(EdECObjectIdentifiers.id_Ed25519));
+        v.add(new DERBitString(signature));
+
+        DERSequence der = new DERSequence(v);
+        ByteArrayInputStream baos = new ByteArrayInputStream(der.getEncoded());
+        X509Certificate cert = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(baos);
+
+        cert.verify(pubKey2);
+
+        StringWriter sw = new StringWriter();
+        try (JcaPEMWriter pw = new JcaPEMWriter(sw)) {
+            pw.writeObject(cert);
+        }
+
+        try {
+            FileWriter myWriter = new FileWriter("cert.pem");
+            myWriter.write(sw.toString());
+            myWriter.close();
+            System.out.println("testExportPublicKey: Successfully wrote to the file.");
+        } catch (IOException e) {
+            System.out.println("An error occurred.");
+            e.printStackTrace();
+        }
     }
 
     /**
