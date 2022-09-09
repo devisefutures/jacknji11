@@ -58,9 +58,14 @@ import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.asn1.x509.TBSCertificate;
 import org.bouncycastle.asn1.x509.Time;
 import org.bouncycastle.asn1.x509.V3TBSCertificateGenerator;
+import org.bouncycastle.cert.CertException;
+import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
 import org.bouncycastle.crypto.digests.SHA1Digest;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
+import org.bouncycastle.operator.ContentVerifierProvider;
+import org.bouncycastle.operator.OperatorCreationException;
+import org.bouncycastle.operator.jcajce.JcaContentVerifierProviderBuilder;
 import org.bouncycastle.util.encoders.Base64;
 
 import java.io.ByteArrayInputStream;
@@ -70,6 +75,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.math.BigInteger;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PublicKey;
@@ -362,7 +368,7 @@ public class CryptokiTest extends TestCase {
     }
 
     public void testCertificateEd25519() throws IOException, CertificateException, NoSuchAlgorithmException,
-            SignatureException, InvalidKeyException, NoSuchProviderException {
+            SignatureException, InvalidKeyException, NoSuchProviderException, OperatorCreationException, CertException {
         long session = loginSession(TESTSLOT, USER_PIN,
                 CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION, null, null);
 
@@ -406,7 +412,10 @@ public class CryptokiTest extends TestCase {
         certGen.setSubject(dnInstance);
         certGen.setStartDate(new Time(new Date(System.currentTimeMillis())));
         certGen.setEndDate(new Time(expiry.getTime()));
-        certGen.setSubjectPublicKeyInfo(SubjectPublicKeyInfo.getInstance(pubKey2.getEncoded()));
+        certGen.setSubjectPublicKeyInfo(
+                new SubjectPublicKeyInfo(new AlgorithmIdentifier(EdECObjectIdentifiers.id_Ed25519),
+                        ec_point.getValue()));
+        // certGen.setSubjectPublicKeyInfo(SubjectPublicKeyInfo.getInstance(pubKey2.getEncoded()));
         certGen.setSignature(new AlgorithmIdentifier(EdECObjectIdentifiers.id_Ed25519));
 
         // Extensions
@@ -455,19 +464,15 @@ public class CryptokiTest extends TestCase {
 
         System.out.println("testCertificateEd25519: Certificate:\n" + Hex.b2s(tbsCert.getEncoded()));
 
-        SHA1Digest digester = new SHA1Digest();
         ByteArrayOutputStream bOut = new ByteArrayOutputStream();
         ASN1OutputStream dOut = ASN1OutputStream.create(bOut);
         dOut.writeObject(tbsCert);
 
         byte[] certBlock = bOut.toByteArray();
-        // first create digest
-        digester.update(certBlock, 0, certBlock.length);
-        byte[] hash = new byte[digester.getDigestSize()];
-        digester.doFinal(hash, 0);
 
+        // since the algorythm is Ed25519 there's no need to create a digest.
         CE.SignInit(session, new CKM(CKM.ECDSA), privKey.value());
-        byte[] signature = CE.Sign(session, hash);
+        byte[] signature = CE.Sign(session, certBlock);
 
         ASN1EncodableVector v = new ASN1EncodableVector();
         v.add(tbsCert);
@@ -478,8 +483,14 @@ public class CryptokiTest extends TestCase {
         ByteArrayInputStream baos = new ByteArrayInputStream(der.getEncoded());
         X509Certificate cert = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(baos);
 
-        cert.verify(pubKey2);
+        // Verify certificate signature
+        X509CertificateHolder certHolder = new X509CertificateHolder(cert.getEncoded());
+        boolean r = certHolder.isSignatureValid(new JcaContentVerifierProviderBuilder().build(cert));
 
+        assertEquals(true, r);
+        System.out.println("testCertificateEd25519: Certificate valid: " + r);
+
+        // Write certificate to file in PEM format
         StringWriter sw = new StringWriter();
         try (JcaPEMWriter pw = new JcaPEMWriter(sw)) {
             pw.writeObject(cert);

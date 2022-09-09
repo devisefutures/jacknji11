@@ -8,3 +8,4 @@ target
 tokens
 /bin/
 *.iml
+*.pem
