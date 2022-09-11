@@ -157,16 +157,11 @@ public class CryptokiUtimacoTest extends TestCase {
                 log.info(String.format("testSignVerifyEd25519: Signature generated with length (should be 64) ==  %d",
                                 sig1.length));
 
-                // System.out.println(
-                // "testSignVerifyEd25519: Signature generated with length == 64? "
-                // + String.valueOf(64 == sig1.length));
-
                 // Verify valid signature
                 CE.VerifyInit(session, new CKM(CKM.ECDSA), pubKey.value());
                 try {
                         CE.Verify(session, data, sig1);
                         log.info("testSignVerifyEd25519: Valid Signature verified");
-                        // System.out.println("testSignVerifyEd25519: Valid Signature verified");
                 } catch (CKRException e) {
                         assertNull("Valid signature verification failed", e.getCKR());
                 }
@@ -175,10 +170,6 @@ public class CryptokiUtimacoTest extends TestCase {
                 CE.SignInit(session, new CKM(CKM.ECDSA), privKey.value());
                 byte[] sig3 = CE.Sign(session, data);
 
-                // System.out.println(
-                // "testSignVerifyEd25519: Signatures are the same: sig1 = " + Hex.b2s(sig1) + "
-                // - sig3 = "
-                // + Hex.b2s(sig3));
                 assertEquals("Signatures are not the same.", true, Hex.b2s(sig1).equals(Hex.b2s(sig3)));
                 log.info(String.format("testSignVerifyEd25519: Signatures are the same: \n\t sig1 = %s \n\t sig3 = %s",
                                 Hex.b2s(sig1), Hex.b2s(sig3)));
@@ -193,12 +184,6 @@ public class CryptokiUtimacoTest extends TestCase {
                         CE.Verify(session, data, sig2);
                         fail("CE Verify with no real signature should throw exception");
                 } catch (CKRException e) {
-                        // System.out.println(
-                        // "testSignVerifyEd25519: Verifying invalid signature. Exception expected "
-                        // + CKR.SIGNATURE_INVALID
-                        // + " : " + CKR.L2S(CKR.SIGNATURE_INVALID)
-                        // + " - Actual exception: "
-                        // + e.getCKR() + " : " + CKR.L2S(e.getCKR()));
                         assertEquals("Failure with invalid signature data should be CKR.SIGNATURE_INVALID",
                                         CKR.SIGNATURE_INVALID,
                                         e.getCKR());
@@ -224,15 +209,11 @@ public class CryptokiUtimacoTest extends TestCase {
                 // Get slot info
                 CK_SLOT_INFO info = new CK_SLOT_INFO();
                 CE.GetSlotInfo(TESTSLOT, info);
-                // System.out.println("testGetSlotInfo - Testslot info: " + TESTSLOT);
-                // System.out.println(info);
                 log.info(String.format("testGetSlotInfo - Testslot info: %d\n%s", TESTSLOT, info));
 
                 // Get token info
                 CK_TOKEN_INFO tinfo = new CK_TOKEN_INFO();
                 CE.GetTokenInfo(TESTSLOT, tinfo);
-                // System.out.println("testGetSlotInfo - Token info: ");
-                // System.out.println(tinfo);
                 log.info(String.format("testGetSlotInfo - Token info:\n%s", tinfo));
         }
 
@@ -248,10 +229,6 @@ public class CryptokiUtimacoTest extends TestCase {
                 LongRef privKey = new LongRef();
                 generateKeyPairEd25519(session, pubKey, privKey);
 
-                // System.out.println("testKeyPairEd25519: edwards25519 keypair generated.
-                // PublicKey handle: "
-                // + pubKey.value()
-                // + ", PrivKey handle: " + privKey.value());
                 log.info(String.format(
                                 "testKeyPairEd25519: edwards25519 keypair generated. PublicKey handle: %d, PrivKey handle: %d",
                                 pubKey.value(), privKey.value()));
@@ -259,28 +236,17 @@ public class CryptokiUtimacoTest extends TestCase {
                 // GET public key value (CKA.VALUE)
                 byte[] publicKey = CE.GetAttributeValue(session, pubKey.value(), CKA.VALUE).getValue();
                 assertEquals(32, publicKey.length);
-                // System.out.println(
-                // "testKeyPairEd25519: public key size (should be 32 bytes) = " +
-                // publicKey.length
-                // + " - value = "
-                // + Hex.b2s(publicKey));
                 log.info(String.format(
                                 "testKeyPairEd25519: public key size (should be 32 bytes) = %d - value = %s",
                                 publicKey.length, Hex.b2s(publicKey)));
 
                 // Get public key EC point (CKA.EC_POINT)
                 byte[] ecPoint = CE.GetAttributeValue(session, pubKey.value(), CKA.EC_POINT).getValue();
-                // System.out.println("testKeyPairEd25519: EC_POINT length = " + ecPoint.length
-                // + " - value = "
-                // + Hex.b2s(ecPoint));
                 log.info(String.format("testKeyPairEd25519: EC_POINT length = %d - value = %s",
                                 ecPoint.length, Hex.b2s(ecPoint)));
 
                 // Get public key EC params (CKA.EC_PARAMS)
                 byte[] ecParams = CE.GetAttributeValue(session, pubKey.value(), CKA.EC_PARAMS).getValue();
-                // System.out.println("testKeyPairEd25519: EC_PARAMS length = " +
-                // ecParams.length + " - value = "
-                // + Hex.b2s(ecParams));
                 log.info(String.format("testKeyPairEd25519: EC_PARAMS length = %d - value = %s",
                                 ecParams.length, Hex.b2s(ecParams)));
 
@@ -298,9 +264,6 @@ public class CryptokiUtimacoTest extends TestCase {
                         assertEquals("testKeyPairEd25519: Failure obtaining private key, should be CKR.ATTRIBUTE_SENSITIVE.",
                                         CKR.ATTRIBUTE_SENSITIVE,
                                         e.getCKR());
-                        // System.out.println("testKeyPairEd25519: Failure obtaining private key, as
-                        // expected: "
-                        // + CKR.L2S(e.getCKR()));
                         log.info(String.format("testKeyPairEd25519: Failure obtaining private key, as expected: %s",
                                         CKR.L2S(e.getCKR())));
                 }
@@ -325,10 +288,6 @@ public class CryptokiUtimacoTest extends TestCase {
                 EdDSAParameterSpec spec = EdDSANamedCurveTable.getByName("ed25519");
                 EdDSAPublicKeySpec pubKeySpec = new EdDSAPublicKeySpec(ec_point.getValue(), spec);
                 PublicKey pubKey2 = new EdDSAPublicKey(pubKeySpec);
-                // System.out.println("testExportPublicKey: PublicKey: " +
-                // Hex.b2s(pubKey2.getEncoded()));
-                // System.out.println("testExportPublicKey: PublicKey Format: " +
-                // pubKey2.getFormat());
                 log.info(String.format("testExportPublicKey: PublicKey: %s", Hex.b2s(pubKey2.getEncoded())));
                 log.info(String.format("testExportPublicKey: PublicKey Format: %s", pubKey2.getFormat()));
 
@@ -336,14 +295,12 @@ public class CryptokiUtimacoTest extends TestCase {
                 byte[] data = pubKey2.getEncoded();
                 String base64encoded = new String(Base64.encode(data));
                 String pemFormat = "-----BEGIN PUBLIC KEY-----\n" + base64encoded + "\n-----END PUBLIC KEY-----";
-                // System.out.println("testExportPublicKey: \n" + pemFormat);
                 log.info(String.format("testExportPublicKey: PEM PublicKey: \n%s", pemFormat));
 
                 try {
                         FileWriter myWriter = new FileWriter("pubkey.pem");
                         myWriter.write(pemFormat);
                         myWriter.close();
-                        // System.out.println("testExportPublicKey: Successfully wrote to the file.");
                         log.info("testExportPublicKey: PEM PublicKey successfully exported to file pubkey.pem");
                 } catch (IOException e) {
                         System.out.println("testExportPublicKey: An error occurred.");
@@ -386,10 +343,6 @@ public class CryptokiUtimacoTest extends TestCase {
                 EdDSAPublicKeySpec pubKeySpec = new EdDSAPublicKeySpec(ec_point.getValue(), spec);
                 PublicKey pubKey2 = new EdDSAPublicKey(pubKeySpec);
 
-                // System.out.println("testSoftVerifyEd25519: message: " + Hex.b2s(msg));
-                // System.out.println("testSoftVerifyEd25519: sigString " + Hex.b2s(sig1));
-                // System.out.println("testSoftVerifyEd25519: pubkey " +
-                // Hex.b2s(pubKey2.getEncoded()));
                 log.info(String.format("testSoftVerifyEd25519: message: %s", Hex.b2s(msg)));
                 log.info(String.format("testSoftVerifyEd25519: sigString: %s", Hex.b2s(sig1)));
                 log.info(String.format("testSoftVerifyEd25519: pubkey: %s", Hex.b2s(pubKey2.getEncoded())));
@@ -401,11 +354,12 @@ public class CryptokiUtimacoTest extends TestCase {
                 boolean validSig = mEdDSAEngine.verify(sig1);
 
                 assertEquals(true, validSig);
-                // System.out.println("testSoftVerifyEd25519: Signature software verification :
-                // " + validSig);
                 log.info(String.format("testSoftVerifyEd25519: Signature software verification : %b", validSig));
         }
 
+        /**
+         * Test issuance and export Ed25519 certificate (self-signed certificate)
+         */
         public void testCertificateEd25519() throws IOException, CertificateException, NoSuchAlgorithmException,
                         SignatureException, InvalidKeyException, NoSuchProviderException, OperatorCreationException,
                         CertException {
@@ -504,8 +458,6 @@ public class CryptokiUtimacoTest extends TestCase {
                 // generate certificate
                 TBSCertificate tbsCert = certGen.generateTBSCertificate();
 
-                // System.out.println("testCertificateEd25519: Certificate:\n" +
-                // Hex.b2s(tbsCert.getEncoded()));
                 log.info(String.format("testCertificateEd25519: Certificate:\n%s", Hex.b2s(tbsCert.getEncoded())));
 
                 ByteArrayOutputStream bOut = new ByteArrayOutputStream();
@@ -533,7 +485,6 @@ public class CryptokiUtimacoTest extends TestCase {
                 boolean r = certHolder.isSignatureValid(new JcaContentVerifierProviderBuilder().build(cert));
 
                 assertEquals(true, r);
-                // System.out.println("testCertificateEd25519: Certificate valid: " + r);
                 log.info(String.format("testCertificateEd25519: Certificate valid: %b", r));
 
                 // Write certificate to file in PEM format
@@ -546,8 +497,6 @@ public class CryptokiUtimacoTest extends TestCase {
                         FileWriter myWriter = new FileWriter("cert.pem");
                         myWriter.write(sw.toString());
                         myWriter.close();
-                        // System.out.println("testCertificateEd25519: Successfully wrote to the
-                        // file.");
                         log.info("testCertificateEd25519: PEM certificate successfully exported to file cert.pem");
                 } catch (IOException e) {
                         System.out.println("testCertificateEd25519:An error occurred.");

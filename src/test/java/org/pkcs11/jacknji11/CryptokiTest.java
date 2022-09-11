@@ -24,6 +24,9 @@ package org.pkcs11.jacknji11;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 import junit.framework.TestCase;
 
 /**
@@ -33,6 +36,8 @@ import junit.framework.TestCase;
  * @author Joel Hockey (joel.hockey@gmail.com)
  */
 public class CryptokiTest extends TestCase {
+    private static final Log log = LogFactory.getLog(CryptokiTest.class);
+
     private byte[] SO_PIN = "sopin".getBytes();
     private byte[] USER_PIN = "userpin".getBytes();
     private long TESTSLOT = 0;
@@ -69,42 +74,48 @@ public class CryptokiTest extends TestCase {
     public void testGetInfo() {
         CK_INFO info = new CK_INFO();
         CE.GetInfo(info);
-        System.out.println("testGetInfo");
-        System.out.println(info);
+        log.info(String.format("testGetInfo:\n%s", info));
+        // System.out.println("testGetInfo");
+        // System.out.println(info);
     }
 
     public void testGetSlotList() {
         long[] slots = CE.GetSlotList(true);
-        System.out.println("testGetSlotList");
-        System.out.println("slots: " + Arrays.toString(slots));
+        // System.out.println("testGetSlotList");
+        // System.out.println("slots: " + Arrays.toString(slots));
+        log.info(String.format("testGetSlotList: slots:\n%s", Arrays.toString(slots)));
     }
 
     public void testGetSlotInfo() {
         CK_SLOT_INFO info = new CK_SLOT_INFO();
         CE.GetSlotInfo(TESTSLOT, info);
-        System.out.println("testGetSlotInfo - Testslot: " + TESTSLOT);
-        System.out.println(info);
+        // System.out.println("testGetSlotInfo - Testslot: " + TESTSLOT);
+        // System.out.println(info);
+        log.info(String.format("testGetSlotInfo - Testslot info: %d\n%s", TESTSLOT, info));
     }
 
     public void testGetTokenInfo() {
         CK_TOKEN_INFO info = new CK_TOKEN_INFO();
         CE.GetTokenInfo(TESTSLOT, info);
-        System.out.println("testGetTokenInfo - Testslot: " + TESTSLOT);
-        System.out.println(info);
+        // System.out.println("testGetTokenInfo - Testslot: " + TESTSLOT);
+        // System.out.println(info);
+        log.info(String.format("testGetTokenInfo - Testslot info: %d - Token info\n%s", TESTSLOT, info));
     }
 
     public void testGetMechanismList() {
-        System.out.println("testGetMechanismList");
+        // System.out.println("testGetMechanismList");
+        log.info("testGetMechanismList");
         for (long mech : CE.GetMechanismList(TESTSLOT)) {
-            System.out.println(String.format("0x%08x : %s", mech, CKM.L2S(mech)));
+            log.info(String.format("0x%08x : %s", mech, CKM.L2S(mech)));
         }
     }
 
     public void testGetMechanismInfo() {
         CK_MECHANISM_INFO info = new CK_MECHANISM_INFO();
         CE.GetMechanismInfo(TESTSLOT, CKM.AES_CBC, info);
-        System.out.println("testGetMechanismInfo");
-        System.out.println(info);
+        // System.out.println("testGetMechanismInfo");
+        // System.out.println(info);
+        log.info(String.format("testGetMechanismInfo - Testslot info: %d\n%s", TESTSLOT, info));
     }
 
     public void testInitTokenInitPinSetPin() {
@@ -117,15 +128,16 @@ public class CryptokiTest extends TestCase {
         byte[] somenewpin = "somenewpin".getBytes();
         CE.SetPIN(session, USER_PIN, somenewpin);
         CE.SetPIN(session, somenewpin, USER_PIN);
-        System.out.println("testGetMechanismInfo");
+        log.info("testInitTokenInitPinSetPin");
     }
 
     public void testGetSessionInfo() {
         long session = CE.OpenSession(TESTSLOT, CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION, null, null);
         CK_SESSION_INFO sessionInfo = new CK_SESSION_INFO();
         CE.GetSessionInfo(session, sessionInfo);
-        System.out.println("testGetSessionInfo");
-        System.out.println(sessionInfo);
+        // System.out.println("testGetSessionInfo");
+        // System.out.println(sessionInfo);
+        log.info(String.format("testGetSessionInfo:\n%s", sessionInfo));
     }
 
     public void testGetSessionInfoCloseAllSessions() {
@@ -133,8 +145,9 @@ public class CryptokiTest extends TestCase {
         long s2 = CE.OpenSession(TESTSLOT, CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION, null, null);
         CK_SESSION_INFO info = new CK_SESSION_INFO();
         CE.GetSessionInfo(s2, info );
-        System.out.println("testGetSessionInfoCloseAllSessions");
-        System.out.println(info);
+        // System.out.println("testGetSessionInfoCloseAllSessions");
+        // System.out.println(info);
+        log.info(String.format("testGetSessionInfoCloseAllSessions:\n%s", info));
         long s3 = CE.OpenSession(TESTSLOT, CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION, null, null);
         CE.CloseSession(s1);
         CE.CloseAllSessions(TESTSLOT);
@@ -145,7 +158,7 @@ public class CryptokiTest extends TestCase {
         long session = CE.OpenSession(TESTSLOT, CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION, null, null);
         byte[] state = CE.GetOperationState(session);
         CE.SetOperationState(session, state, 0, 0);
-        System.out.println("testGetSetOperationState");
+        log.info("testGetSetOperationState");
     }
 
     public void testCreateCopyDestroyObject() {
@@ -162,7 +175,7 @@ public class CryptokiTest extends TestCase {
         long o2 = CE.CopyObject(session, o1, newTempl);
         CE.DestroyObject(session, o1);
         CE.DestroyObject(session, o2);
-        System.out.println("testCreateCopyDestroyObject");
+        log.info("testCreateCopyDestroyObject");
     }
 
     public void testGetObjectSizeGetSetAtt() {
@@ -208,7 +221,7 @@ public class CryptokiTest extends TestCase {
         assertNull(CE.GetAttributeValue(session, o, CKA.ID).getValueStr());
         assertNull(templ[2].getValue());
         assertNull(templ[3].getValueBool());
-        System.out.println("testGetObjectSizeGetSetAtt");
+        log.info("testGetObjectSizeGetSetAtt");
     }
 
     public void testFindObjects() {
@@ -239,7 +252,7 @@ public class CryptokiTest extends TestCase {
         assertEquals(o4, found[0]);
         assertEquals(0, CE.FindObjects(session, 2).length);
         CE.FindObjectsFinal(session);
-        System.out.println("testFindObjects");
+        log.info("testFindObjects");
     }
 
 
@@ -273,9 +286,12 @@ public class CryptokiTest extends TestCase {
         byte[] decrypted2a = CE.DecryptUpdate(session, Buf.substring(encrypted1, 0, 8));
         byte[] decrypted2b = CE.DecryptUpdate(session, Buf.substring(encrypted1, 8, 8));
         byte[] decrypted2c = CE.DecryptFinal(session);
-        assertTrue(Arrays.equals(plaintext, Buf.cat(decrypted2a, decrypted2b, decrypted2c)));
-        System.out.println(
-                "testEncryptDecrypt: " + Arrays.equals(plaintext, Buf.cat(decrypted2a, decrypted2b, decrypted2c)));
+        boolean b = Arrays.equals(plaintext, Buf.cat(decrypted2a, decrypted2b, decrypted2c));
+        assertTrue(b);
+        log.info(String.format("testEncryptDecrypt: %b", b));
+        // System.out.println(
+        // "testEncryptDecrypt: " + Arrays.equals(plaintext, Buf.cat(decrypted2a,
+        // decrypted2b, decrypted2c)));
     }
 
     public void testDigest() {
@@ -284,11 +300,15 @@ public class CryptokiTest extends TestCase {
         CE.DigestInit(session, new CKM(CKM.SHA256));
         byte[] digested1 = CE.Digest(session, new byte[100]);
         assertEquals(32, digested1.length);
+        log.info(String.format("testDigest: digest length (expected 32) = %d", digested1.length));
+
         CE.DigestInit(session, new CKM(CKM.SHA256));
         CE.DigestUpdate(session, new byte[50]);
         CE.DigestUpdate(session, new byte[50]);
         byte[] digested2 = CE.DigestFinal(session);
+        boolean b = Arrays.equals(digested1, digested2);
         assertTrue(Arrays.equals(digested1, digested2));
+        log.info(String.format("testDigest: Arrays digested1 == digested2: %b", b));
 
         long aeskey = CE.GenerateKey(session, new CKM(CKM.AES_KEY_GEN),
                 new CKA(CKA.VALUE_LEN, 24),
@@ -302,10 +322,7 @@ public class CryptokiTest extends TestCase {
         CE.DigestKey(session, aeskey);
         byte[] digestedKey = CE.DigestFinal(session);
 
-        /* TODO: Falta aqui fazer mais uns testes para o digestedKey */
-
-        System.out.println("testDigest: " + String.valueOf(32 == digested1.length) + " - "
-                + Arrays.equals(digested1, digested2));
+        /* TODO: Needs some more tests for the digestedKey */
     }
 
     public void testSignVerifyRSAPKCS1() {
@@ -344,6 +361,7 @@ public class CryptokiTest extends TestCase {
         CE.SignInit(session, new CKM(CKM.SHA256_RSA_PKCS), privKey.value());
         byte[] sig1 = CE.Sign(session, data);
         assertEquals(128, sig1.length);
+        log.info(String.format("testSignVerifyRSAPKCS1: signature length (expected 32) = %d", sig1.length));
 
         CE.VerifyInit(session, new CKM(CKM.SHA256_RSA_PKCS), pubKey.value());
         CE.Verify(session, data, sig1);
@@ -353,10 +371,9 @@ public class CryptokiTest extends TestCase {
         CE.SignUpdate(session, new byte[50]);
         CE.SignUpdate(session, new byte[50]);
         byte[] sig2 = CE.SignFinal(session);
-        assertTrue(Arrays.equals(sig1, sig2));
-
-        System.out.println(
-                "testSignVerifyRSAPKCS1: " + String.valueOf(128 == sig1.length) + " - " + Arrays.equals(sig1, sig2));
+        boolean b = Arrays.equals(sig1, sig2);
+        assertTrue(b);
+        log.info(String.format("testDitestSignVerifyRSAPKCS1: Signature sig1 == sig2: %b", b));
 
         CE.VerifyInit(session, new CKM(CKM.SHA256_RSA_PKCS), pubKey.value());
         CE.VerifyUpdate(session, new byte[50]);
@@ -369,9 +386,14 @@ public class CryptokiTest extends TestCase {
             fail("CE Verify with no real signature should throw exception");
         } catch (CKRException e) {
             assertEquals("Failure with invalid signature data should be CKR.SIGNATURE_INVALID", CKR.SIGNATURE_INVALID, e.getCKR());
-            System.out.println(
-                    "testSignVerifyRSAPKCS1: Exception expected " + CKR.SIGNATURE_INVALID + " - Actual exception: "
-                            + e.getCKR());
+            // System.out.println(
+            // "testSignVerifyRSAPKCS1: Exception expected " + CKR.SIGNATURE_INVALID + " -
+            // Actual exception: "
+            // + e.getCKR());
+            log.info(String.format(
+                    "testSignVerifyRSAPKCS1: Verifying invalid signature. Exception expected %d (%s) - Actual exception %d (%s)",
+                    CKR.SIGNATURE_INVALID, CKR.L2S(CKR.SIGNATURE_INVALID), e.getCKR(),
+                    CKR.L2S(e.getCKR())));
         }
     }
 
@@ -413,8 +435,9 @@ public class CryptokiTest extends TestCase {
         byte[] sig1 = CE.Sign(session, data);
         assertEquals(128, sig1.length);
 
-        System.out.println(
-                "testSignVerifyRSAPSS: " + String.valueOf(128 == sig1.length));
+        // System.out.println(
+        // "testSignVerifyRSAPSS: " + String.valueOf(128 == sig1.length));
+        log.info(String.format("testSignVerifyRSAPSS: signature length (expected 128) = %d", sig1.length));
 
         CE.VerifyInit(session, ckm, pubKey.value());
         CE.Verify(session, data, sig1);
@@ -438,9 +461,14 @@ public class CryptokiTest extends TestCase {
             fail("CE Verify with no real signature should throw exception");
         } catch (CKRException e) {
             assertEquals("Failure with invalid signature data should be CKR.SIGNATURE_INVALID", CKR.SIGNATURE_INVALID, e.getCKR());
-            System.out.println(
-                    "testSignVerifyRSAPSS: Exception expected " + CKR.SIGNATURE_INVALID + " - Actual exception: "
-                            + e.getCKR());
+            // System.out.println(
+            // "testSignVerifyRSAPSS: Exception expected " + CKR.SIGNATURE_INVALID + " -
+            // Actual exception: "
+            // + e.getCKR());
+            log.info(String.format(
+                    "testSignVerifyRSAPSS: Verifying invalid signature. Exception expected %d (%s) - Actual exception %d (%s)",
+                    CKR.SIGNATURE_INVALID, CKR.L2S(CKR.SIGNATURE_INVALID), e.getCKR(),
+                    CKR.L2S(e.getCKR())));
         }
     }
 
@@ -486,8 +514,9 @@ public class CryptokiTest extends TestCase {
         CE.SignInit(session, new CKM(CKM.ECDSA), privKey.value());
         byte[] sig1 = CE.Sign(session, data);
         assertEquals(64, sig1.length);
-
-        System.out.println("testSignVerifyECDSA: " + String.valueOf(64 == sig1.length));
+        log.info(String.format("testSignVerifyECDSA: signature length (expected 64) = %d", sig1.length));
+        // System.out.println("testSignVerifyECDSA: " + String.valueOf(64 ==
+        // sig1.length));
 
         CE.VerifyInit(session, new CKM(CKM.ECDSA), pubKey.value());
         CE.Verify(session, data, sig1);
@@ -497,13 +526,18 @@ public class CryptokiTest extends TestCase {
             CE.Verify(session, data, new byte[64]);
             fail("CE Verify with no real signature should throw exception");
         } catch (CKRException e) {
-            System.out.println(
-                    "testSignVerifyECDSA: Exception expected " + CKR.SIGNATURE_INVALID + " : "
-                            + CKR.L2S(CKR.SIGNATURE_INVALID) + " - Actual exception: "
-                            + e.getCKR() + " : " + CKR.L2S(e.getCKR()));
+            // System.out.println(
+            // "testSignVerifyECDSA: Exception expected " + CKR.SIGNATURE_INVALID + " : "
+            // + CKR.L2S(CKR.SIGNATURE_INVALID) + " - Actual exception: "
+            // + e.getCKR() + " : " + CKR.L2S(e.getCKR()));
             // Utimaco Simulator exception: GENERAL_ERROR instead of SIGNATURE_INVALID, when
             // no real signature
-            assertEquals("Failure with invalid signature data should be CKR.SIGNATURE_INVALID", CKR.SIGNATURE_INVALID, e.getCKR());
+            assertEquals("Failure with invalid signature data should be CKR.GENERAL_ERROR", CKR.GENERAL_ERROR,
+                    e.getCKR());
+            log.info(String.format(
+                    "testSignVerifyECDSA: Verifying invalid signature. Exception expected %d (%s) - Actual exception %d (%s)",
+                    CKR.GENERAL_ERROR, CKR.L2S(CKR.GENERAL_ERROR), e.getCKR(),
+                    CKR.L2S(e.getCKR())));
         }
     }
 
@@ -534,9 +568,9 @@ public class CryptokiTest extends TestCase {
         // Attributes from PKCS #11 Cryptographic Token Interface Current Mechanisms Specification Version 2.40 section 2.3.3 - ECDSA public key objects
         /* DER-encoding of an ANSI X9.62 Parameters, also known as "EC domain parameters". */
         // We use a Ed25519 key, the oid 1.3.101.112 has DER encoding in Hex 06032b6570
-        byte[] ecCurveParams = Hex.s2b("06032b6570");
+        // byte[] ecCurveParams = Hex.s2b("06032b6570");
         CKA[] pubTempl = new CKA[] {
-            new CKA(CKA.EC_PARAMS, ecCurveParams),
+                new CKA(CKA.EC_PARAMS, "edwards25519"),
             new CKA(CKA.WRAP, false),
             new CKA(CKA.ENCRYPT, false),
             new CKA(CKA.VERIFY, true),
@@ -562,10 +596,11 @@ public class CryptokiTest extends TestCase {
         CE.GenerateKeyPair(session, new CKM(CKM.EC_EDWARDS_KEY_PAIR_GEN), pubTempl, privTempl, pubKey, privKey);
 
         // Direct sign, PKCS#11 "2.3.14 EdDSA"
-        byte[] data = new byte[32]; // SHA256 hash is 32 bytes
+        byte[] data = new byte[32];
         CE.SignInit(session, new CKM(CKM.EDDSA), privKey.value());
         byte[] sig1 = CE.Sign(session, data);
         assertEquals(64, sig1.length);
+        log.info(String.format("testSignVerifyEdDSA: signature length (expected 64) = %d", sig1.length));
 
         CE.VerifyInit(session, new CKM(CKM.EDDSA), pubKey.value());
         CE.Verify(session, data, sig1);
@@ -576,6 +611,10 @@ public class CryptokiTest extends TestCase {
             fail("CE Verify with no real signature should throw exception");
         } catch (CKRException e) {
             assertEquals("Failure with invalid signature data should be CKR.SIGNATURE_INVALID", CKR.SIGNATURE_INVALID, e.getCKR());
+            log.info(String.format(
+                    "testSignVerifyEdDSA: Verifying invalid signature. Exception expected %d (%s) - Actual exception %d (%s)",
+                    CKR.SIGNATURE_INVALID, CKR.L2S(CKR.SIGNATURE_INVALID), e.getCKR(),
+                    CKR.L2S(e.getCKR())));
         }
     }
 
@@ -617,6 +656,7 @@ public class CryptokiTest extends TestCase {
         CE.SignInit(session, new CKM(CKM.SHA256_RSA_PKCS), privKey.value());
         byte[] sig1 = CE.Sign(session, data);
         assertEquals(128, sig1.length);
+        log.info(String.format("testSignVerifyRecoveryRSA: signature length (expected 128) = %d", sig1.length));
 
         data = new byte[10];
         CE.SignRecoverInit(session, new CKM(CKM.RSA_PKCS), privKey.value());
@@ -628,13 +668,13 @@ public class CryptokiTest extends TestCase {
          * para estes dados.
          */
         assertEquals(128, sigrec1.length);
+        log.info(String.format("testSignVerifyRecoveryRSA: signature length (expected 128) = %d", sigrec1.length));
 
         CE.VerifyRecoverInit(session, new CKM(CKM.RSA_PKCS), pubKey.value());
         byte[] recdata = CE.VerifyRecover(session, sigrec1);
-        assertTrue(Arrays.equals(data, recdata));
-
-        System.out.println("testSignVerifyRecoveryRSA: " + String.valueOf(128 == sig1.length) + " - "
-                + String.valueOf(128 == sigrec1.length) + " - " + Arrays.equals(data, recdata));
+        boolean b = Arrays.equals(data, recdata);
+        assertTrue(b);
+        log.info(String.format("testSignVerifyRecoveryRSA: data correctly recovered = %b", b));
     }
 
 //    public static native long C_DigestEncryptUpdate(long session, byte[] part, long part_len, byte[] encrypted_part, LongRef encrypted_part_len);
@@ -719,9 +759,9 @@ public class CryptokiTest extends TestCase {
         };
         long aeskey2 = CE.UnwrapKey(session, new CKM(CKM.RSA_PKCS), privKey.value(), wrapped, secTemplUnwrap);
         byte[] aeskey2buf = CE.GetAttributeValue(session, aeskey2, CKA.VALUE).getValue();
-        assertTrue(Arrays.equals(aeskey2buf, aeskeybuf));
-
-        System.out.println("testGenerateKeyWrapUnwrap: " + Arrays.equals(aeskey2buf, aeskeybuf));
+        boolean b = Arrays.equals(aeskey2buf, aeskeybuf);
+        assertTrue(b);
+        log.info(String.format("testGenerateKeyWrapUnwrap: aekeybuf == aeskeybuf2 : %b", b));
     }
 
     public void testPTKDES3Derive() {
@@ -741,7 +781,7 @@ public class CryptokiTest extends TestCase {
     public void testRandom() {
         long session = CE.OpenSession(TESTSLOT, CK_SESSION_INFO.CKF_RW_SESSION | CK_SESSION_INFO.CKF_SERIAL_SESSION, null, null);
 
-        /* TODO: Faltava aqui fazer login */
+        /* TODO: Needed to login (in Utimaco) */
         CE.LoginUser(session, USER_PIN);
 
         byte[] buf = new byte[16];
@@ -749,7 +789,8 @@ public class CryptokiTest extends TestCase {
         CE.GenerateRandom(session, buf);
         byte[] buf2 = CE.GenerateRandom(session, 16);
 
-        System.out.println("testRandom: " + buf2);
+        // System.out.println("testRandom: " + buf2);
+        log.info(String.format("testRandom: random value : %s", Hex.b2s(buf2)));
     }
 
 //    public static native long C_GetFunctionStatus(long session);

@@ -37,6 +37,11 @@
     <appender-ref ref="jacknji11-info" />
   </logger>
 
+   <logger name="org.pkcs11.jacknji11.CryptokiTest" additivity="false">
+    <level value="info" />
+    <appender-ref ref="jacknji11-info" />
+  </logger>
+
   <root>
     <priority value="error" />
     <appender-ref ref="stderr" />

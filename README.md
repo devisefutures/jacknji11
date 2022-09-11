@@ -1,6 +1,6 @@
 # Java Interface for PKCS#11.
 
-Project forked from https://github.com/joelhockey/jacknji11. Tested with Utimaco HSM (Cryptoserver v. 4.31 Simulator and LAN HSM). Added Edward curves (Ed25519) test.
+Project forked from https://github.com/joelhockey/jacknji11. Tested with Utimaco HSM (Cryptoserver v. 4.31 Simulator and LAN HSM). Added Edward curves (Ed25519) tests.
 
 To test Edward curves on Utimaco, use:
 
@@ -8,7 +8,7 @@ To test Edward curves on Utimaco, use:
 
 Test log information is written to:
   + logs/jacknji11.log - PKCS#11 communication with the HSM
-  + logs/jacknji11-info.log - additional CryptokiUtimacoTest logs
+  + logs/jacknji11-info.log - additional functional logs
 
 ---
 
