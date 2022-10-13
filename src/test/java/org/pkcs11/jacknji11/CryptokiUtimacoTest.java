@@ -63,6 +63,10 @@ import org.bouncycastle.asn1.x509.V3TBSCertificateGenerator;
 import org.bouncycastle.cert.CertException;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
+import org.bouncycastle.crypto.Signer;
+import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
+import org.bouncycastle.crypto.signers.Ed25519Signer;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentVerifierProviderBuilder;
@@ -347,14 +351,29 @@ public class CryptokiUtimacoTest extends TestCase {
                 log.info(String.format("testSoftVerifyEd25519: sigString: %s", Hex.b2s(sig1)));
                 log.info(String.format("testSoftVerifyEd25519: pubkey: %s", Hex.b2s(pubKey2.getEncoded())));
 
-                // Verify HSM signature, using extracted public key
+                // Verify HSM signature, using extracted public key (and using net.i2p.crypto
+                // library)
                 EdDSAEngine mEdDSAEngine = new EdDSAEngine();
                 mEdDSAEngine.initVerify(pubKey2);
                 mEdDSAEngine.update(msg);
                 boolean validSig = mEdDSAEngine.verify(sig1);
 
                 assertEquals(true, validSig);
-                log.info(String.format("testSoftVerifyEd25519: Signature software verification : %b", validSig));
+                log.info(String.format(
+                                "testSoftVerifyEd25519: Signature software verification with net.i2p.crypto library: %b",
+                                validSig));
+
+                // Verify signature using BouncyCastle
+                Signer verifier = new Ed25519Signer();
+                AsymmetricKeyParameter publicKeyParameters = new Ed25519PublicKeyParameters(ec_point.getValue());
+
+                verifier.init(false, publicKeyParameters);
+                verifier.update(msg, 0, msg.length);
+                boolean verified = verifier.verifySignature(sig1);
+
+                assertEquals(true, verified);
+                log.info(String.format("testSoftVerifyEd25519: Signature software verification with BouncyCastle: %b",
+                                validSig));
         }
 
         /**
