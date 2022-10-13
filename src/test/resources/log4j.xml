@@ -18,9 +18,28 @@
     </layout>
   </appender>
 
+  <appender name="jacknji11-info" class="org.apache.log4j.DailyRollingFileAppender">
+    <param name="File" value="logs/jacknji11-info.log" />
+    <param name="Append" value="false" />
+    <param name="DatePattern" value="'.'yyyyMMdd" />
+    <layout class="org.apache.log4j.PatternLayout">
+      <param name="ConversionPattern" value="%d %t\t%m%n" />
+    </layout>
+  </appender>
+
   <logger name="org.pkcs11.jacknji11" additivity="false">
     <level value="debug" />
     <appender-ref ref="jacknji11" />
+  </logger>
+
+  <logger name="org.pkcs11.jacknji11.CryptokiUtimacoTest" additivity="false">
+    <level value="info" />
+    <appender-ref ref="jacknji11-info" />
+  </logger>
+
+   <logger name="org.pkcs11.jacknji11.CryptokiTest" additivity="false">
+    <level value="info" />
+    <appender-ref ref="jacknji11-info" />
   </logger>
 
   <root>
